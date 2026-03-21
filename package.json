@@ -1,0 +1,17 @@
+{
+  "name": "anichin-web",
+  "version": "1.0.0",
+  "description": "Web streaming Donghua sub Indo — powered by Anichin + Supabase",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "scrape": "node scraper/index.js"
+  },
+  "dependencies": {
+    "axios": "^1.7.0",
+    "cheerio": "^1.0.0",
+    "express": "^4.18.0",
+    "@supabase/supabase-js": "^2.43.0",
+    "dotenv": "^16.4.0"
+  }
+}
