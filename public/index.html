@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Noctyra Watch — Donghua Sub Indo</title>
+  <meta name="description" content="Nonton Donghua subtitle Indonesia terlengkap. Update otomatis tiap hari.">
+  <link rel="stylesheet" href="/css/style.css">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🐉</text></svg>">
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+</head>
+<body>
+
+<!-- ── Navbar ── -->
+<nav>
+  <div class="nav-inner">
+    <a href="/" class="nav-logo">🐉 Noctyra Watch</a>
+    <div class="nav-links">
+      <a href="/" class="active">Beranda</a>
+      <a href="/schedule.html">Jadwal</a>
+      <a href="/search.html">Series</a>
+      <button class="nav-search-btn" id="search-btn">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+          <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+        </svg>
+        Cari
+      </button>
+    </div>
+  </div>
+</nav>
+
+<!-- ── Search Overlay ── -->
+<div class="search-overlay" id="search-overlay">
+  <button class="search-close" id="search-close">✕</button>
+  <div class="search-box">
+    <input type="text" id="search-input" placeholder="Cari judul donghua...">
+  </div>
+  <div id="search-results"></div>
+</div>
+
+<!-- ── Hero ── -->
+<div class="hero" id="hero">
+  <div class="hero-bg" id="hero-bg"></div>
+  <div class="hero-overlay"></div>
+  <div class="hero-content container">
+    <div class="hero-badge">🔥 Episode Terbaru</div>
+    <h1 class="hero-title" id="hero-title">Memuat...</h1>
+    <div class="hero-meta" id="hero-meta"></div>
+    <p class="hero-desc" id="hero-desc"></p>
+    <div class="hero-actions" id="hero-actions"></div>
+  </div>
+</div>
+
+<!-- ── Main Content ── -->
+<main class="container">
+
+  <!-- Latest Episodes -->
+  <section class="section">
+    <div class="section-header">
+      <h2 class="section-title">Episode Terbaru</h2>
+      <a href="/search.html" class="section-more">Lihat Semua →</a>
+    </div>
+    <div id="latest-grid" class="cards-grid">
+      <div class="loader"><div class="spinner"></div> Memuat...</div>
+    </div>
+  </section>
+
+  <!-- Ongoing + Popular side by side -->
+  <div style="display:grid;grid-template-columns:1fr 320px;gap:32px;align-items:start">
+
+    <!-- Ongoing Series -->
+    <section class="section">
+      <div class="section-header">
+        <h2 class="section-title">Sedang Tayang</h2>
+        <a href="/search.html?status=Ongoing" class="section-more">Lihat Semua →</a>
+      </div>
+      <div id="ongoing-grid" class="cards-grid wide">
+        <div class="loader"><div class="spinner"></div></div>
+      </div>
+    </section>
+
+    <!-- Sidebar: Ongoing list update terbaru -->
+    <aside>
+      <section class="section">
+        <div class="section-header">
+          <h2 class="section-title">Update</h2>
+        </div>
+        <div id="ongoing-list" class="ongoing-list">
+          <div class="loader"><div class="spinner"></div></div>
+        </div>
+      </section>
+    </aside>
+  </div>
+
+</main>
+
+<!-- ── Footer ── -->
+<footer>
+  <p>🐉 <span>Noctyra Watch</span> — Fansub Donghua Sub Indo</p>
+  <p style="margin-top:6px;font-size:0.8rem">Data diperbarui otomatis dari Anichin.cafe</p>
+</footer>
+
+<script src="/js/app.js"></script>
+<script>
+(async () => {
+  // Latest episodes
+  const latest = await getLatestEpisodes(24);
+  const latestGrid = document.getElementById("latest-grid");
+
+  if (!latest.length) {
+    latestGrid.innerHTML = `<div class="empty"><div class="empty-icon">📭</div><h3>Belum ada data</h3><p>Jalankan scraper dulu</p></div>`;
+  } else {
+    latestGrid.innerHTML = latest.map((ep) => epCardHTML(ep)).join("");
+
+    // Hero: tampilkan episode pertama
+    const hero = latest[0];
+    const s = hero.series || {};
+    document.getElementById("hero-bg").style.backgroundImage = `url('${s.thumb}')`;
+    document.getElementById("hero-title").textContent = s.title || hero.title;
+    document.getElementById("hero-meta").innerHTML = `
+      ${s.status ? `<span>📡 ${s.status}</span>` : ''}
+      ${hero.ep_num ? `<span>📺 Episode ${hero.ep_num}</span>` : ''}
+      ${s.rating ? `<span>⭐ ${s.rating}</span>` : ''}
+      ${hero.release_date ? `<span>📅 ${hero.release_date}</span>` : ''}
+    `;
+    document.getElementById("hero-desc").textContent = s.synopsis || '';
+    document.getElementById("hero-actions").innerHTML = `
+      <a href="/episode.html?url=${encodeURIComponent(hero.url)}" class="btn btn-primary">
+        ▶ Tonton Sekarang
+      </a>
+      <a href="/series.html?slug=${s.slug || ''}" class="btn btn-secondary">
+        📋 Detail Series
+      </a>
+    `;
+  }
+
+  // Ongoing series grid
+  const ongoing = await getOngoingSeries(12);
+  document.getElementById("ongoing-grid").innerHTML = ongoing.length
+    ? ongoing.map((s) => cardHTML(s)).join("")
+    : `<div class="empty"><div class="empty-icon">📭</div><p>Belum ada data</p></div>`;
+
+  // Ongoing list sidebar (latest episodes)
+  document.getElementById("ongoing-list").innerHTML = latest.slice(0, 12).map((ep) => {
+    const s = ep.series || {};
+    return `
+      <div class="ongoing-item" onclick="goEpisode('${encodeURIComponent(ep.url)}')">
+        <img class="ongoing-thumb" src="${s.thumb || ''}" alt=""
+             onerror="this.src='https://via.placeholder.com/48x68/141428/666680?text=?'">
+        <div class="ongoing-info">
+          <div class="ongoing-title">${s.title || ep.title || ''}</div>
+          <div class="ongoing-ep">${ep.ep_num ? `Ep ${ep.ep_num}` : ''} · ${timeAgo(ep.created_at)}</div>
+        </div>
+        <span class="ongoing-new">NEW</span>
+      </div>`;
+  }).join("");
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Nonton — Noctyra Watch</title>
+  <link rel="stylesheet" href="/css/style.css">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🐉</text></svg>">
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+</head>
+<body>
+
+<nav>
+  <div class="nav-inner">
+    <a href="/" class="nav-logo">🐉 Noctyra Watch</a>
+    <div class="nav-links">
+      <a href="/">Beranda</a>
+      <a href="/schedule.html">Jadwal</a>
+      <a href="/search.html">Series</a>
+      <button class="nav-search-btn" id="search-btn">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+          <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+        </svg> Cari
+      </button>
+    </div>
+  </div>
+</nav>
+
+<div class="search-overlay" id="search-overlay">
+  <button class="search-close" id="search-close">✕</button>
+  <div class="search-box">
+    <input type="text" id="search-input" placeholder="Cari judul donghua...">
+  </div>
+  <div id="search-results"></div>
+</div>
+
+<main class="container page">
+  <div id="content">
+    <div class="loader"><div class="spinner"></div> Memuat episode...</div>
+  </div>
+</main>
+
+<footer>
+  <p>🐉 <span>Noctyra Watch</span> — Fansub Donghua Sub Indo</p>
+</footer>
+
+<script src="/js/app.js"></script>
+<script>
+(async () => {
+  const epUrl = decodeURIComponent(getParam("url") || "");
+  if (!epUrl) { location.href = "/"; return; }
+
+  const [episode, allEps] = await Promise.all([
+    getEpisodeByUrl(epUrl),
+    (async () => {
+      // ambil slug dulu dari URL episode
+      const tmp = await getEpisodeByUrl(epUrl);
+      if (!tmp) return [];
+      return getEpisodesBySeries(tmp.series_slug);
+    })()
+  ]);
+
+  if (!episode) {
+    document.getElementById("content").innerHTML = `
+      <div class="empty"><div class="empty-icon">😢</div><h3>Episode tidak ditemukan di database</h3>
+      <p style="margin-top:8px;color:var(--muted)">Mungkin belum di-scrape. Coba nanti.</p>
+      <a href="/" class="btn btn-primary" style="margin-top:16px">Kembali</a></div>`;
+    return;
+  }
+
+  const [servers, downloads, comments] = await Promise.all([
+    getServers(episode.id),
+    getDownloads(episode.id),
+    getComments(epUrl)
+  ]);
+
+  const series = episode.series || {};
+  document.title = `${episode.title || series.title} — Noctyra Watch`;
+
+  // Navigasi episode
+  const epIdx   = allEps.findIndex(e => e.url === epUrl);
+  const prevEp  = allEps[epIdx + 1] || null; // index lebih besar = lebih lama
+  const nextEp  = allEps[epIdx - 1] || null;
+
+  // Group downloads by quality
+  const dlGroups = {};
+  downloads.forEach(d => {
+    const q = d.quality || 'HD';
+    if (!dlGroups[q]) dlGroups[q] = [];
+    dlGroups[q].push(d);
+  });
+
+  document.getElementById("content").innerHTML = `
+    <!-- Breadcrumb -->
+    <div style="margin-bottom:16px;font-size:0.85rem;color:var(--muted);display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+      <a href="/" style="color:var(--muted)">Beranda</a> /
+      <a href="/series.html?slug=${episode.series_slug}" style="color:var(--muted)">${series.title || episode.series_slug}</a> /
+      <span style="color:var(--text)">${episode.title || `Ep ${episode.ep_num}`}</span>
+    </div>
+
+    <div style="display:grid;grid-template-columns:1fr 300px;gap:24px;align-items:start">
+
+      <!-- LEFT: Player + Info -->
+      <div>
+        <!-- Player -->
+        <div class="player-wrap" id="player-wrap">
+          ${servers.length
+            ? `<iframe id="player-iframe" src="${servers[0].embed_url}" allowfullscreen
+                       allow="autoplay; fullscreen; picture-in-picture" scrolling="no"></iframe>`
+            : `<div class="player-placeholder">
+                 <div style="font-size:3rem">📺</div>
+                 <p>Player tidak tersedia di database</p>
+                 <a href="${epUrl}" target="_blank" class="btn btn-primary" style="margin-top:8px">Buka di Anichin ↗</a>
+               </div>`}
+        </div>
+
+        <!-- Server selector -->
+        ${servers.length > 1 ? `
+        <div style="margin-top:12px">
+          <div style="font-size:0.8rem;color:var(--muted);margin-bottom:8px">Pilih Server:</div>
+          <div class="server-list">
+            ${servers.map((s, i) => `
+              <button class="server-btn ${i === 0 ? 'active' : ''}" onclick="changeServer('${s.embed_url}', this)">
+                ${s.type || 'Server ' + (i+1)}
+              </button>`).join("")}
+          </div>
+        </div>` : ''}
+
+        <!-- Episode nav -->
+        <div class="ep-nav">
+          ${prevEp
+            ? `<a href="/episode.html?url=${encodeURIComponent(prevEp.url)}">← ${prevEp.title || 'Ep ' + prevEp.ep_num}</a>`
+            : `<span style="flex:1"></span>`}
+          <a href="/series.html?slug=${episode.series_slug}" style="background:var(--red-dim);border-color:var(--red);color:var(--red)">
+            📋 Semua Episode
+          </a>
+          ${nextEp
+            ? `<a href="/episode.html?url=${encodeURIComponent(nextEp.url)}">${nextEp.title || 'Ep ' + nextEp.ep_num} →</a>`
+            : `<span style="flex:1"></span>`}
+        </div>
+
+        <!-- Title -->
+        <h1 style="font-family:'Cinzel',serif;font-size:1.3rem;margin-bottom:6px">${episode.title || series.title}</h1>
+        <div style="font-size:0.85rem;color:var(--muted);margin-bottom:24px">
+          ${episode.ep_num ? `Episode ${episode.ep_num}` : ''} 
+          ${episode.release_date ? `· ${episode.release_date}` : ''}
+          · <a href="/series.html?slug=${episode.series_slug}" style="color:var(--red)">${series.title}</a>
+        </div>
+
+        <!-- Downloads -->
+        ${Object.keys(dlGroups).length ? `
+        <section class="section">
+          <h2 class="section-title">Download</h2>
+          <div style="margin-top:16px">
+            ${Object.entries(dlGroups).map(([q, links]) => `
+              <div class="dl-group">
+                <div class="dl-quality">${q}</div>
+                <div class="dl-links">
+                  ${links.map(l => `
+                    <a href="${l.url}" target="_blank" rel="noopener" class="dl-btn">
+                      ⬇ ${l.host}
+                    </a>`).join("")}
+                </div>
+              </div>`).join("")}
+          </div>
+        </section>` : ''}
+
+        <!-- Comments -->
+        <section class="section">
+          <h2 class="section-title">Komentar</h2>
+          <div style="margin-top:16px">
+
+            <!-- Form -->
+            <div class="comment-form">
+              <input id="c-name" type="text" placeholder="Nama kamu" maxlength="50">
+              <textarea id="c-body" placeholder="Tulis komentar..." rows="3" maxlength="500"></textarea>
+              <button class="btn btn-primary" onclick="submitComment()">Kirim Komentar</button>
+            </div>
+
+            <!-- List -->
+            <div class="comment-list" id="comment-list">
+              ${renderComments(comments)}
+            </div>
+          </div>
+        </section>
+      </div>
+
+      <!-- RIGHT: Sidebar -->
+      <aside>
+        <!-- Series info -->
+        <div style="background:var(--card);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;margin-bottom:20px">
+          <img src="${series.thumb || ''}" alt="${series.title}" style="width:100%;aspect-ratio:2/3;object-fit:cover"
+               onerror="this.style.display='none'">
+          <div style="padding:14px">
+            <a href="/series.html?slug=${episode.series_slug}" style="font-weight:700;font-size:0.95rem">${series.title}</a>
+            <div style="margin-top:6px;display:flex;gap:6px;flex-wrap:wrap">
+              <span class="tag red">${series.status||''}</span>
+              ${(series.genres||[]).slice(0,3).map(g=>`<span class="tag">${g}</span>`).join("")}
+            </div>
+            ${series.rating ? `<div style="margin-top:8px;font-size:0.85rem;color:var(--gold)">⭐ ${series.rating}</div>` : ''}
+          </div>
+        </div>
+
+        <!-- Other episodes -->
+        <div style="background:var(--card);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden">
+          <div style="padding:12px 14px;border-bottom:1px solid var(--border);font-family:'Cinzel',serif;font-size:0.85rem;font-weight:600">
+            Episode Lainnya
+          </div>
+          <div style="max-height:400px;overflow-y:auto">
+            ${allEps.slice(0, 20).map(ep => `
+              <div onclick="location.href='/episode.html?url=${encodeURIComponent(ep.url)}'"
+                   style="padding:10px 14px;border-bottom:1px solid var(--border);cursor:pointer;
+                          transition:background 0.2s;${ep.url===epUrl?'background:var(--red-dim);border-left:3px solid var(--red);':''}"
+                   onmouseover="this.style.background='var(--card-h)'" onmouseout="this.style.background='${ep.url===epUrl?'var(--red-dim)':'transparent'}'">
+                <div style="font-size:0.85rem;font-weight:600">${ep.title || 'Ep ' + ep.ep_num}</div>
+                <div style="font-size:0.75rem;color:var(--muted)">${ep.release_date || timeAgo(ep.created_at)}</div>
+              </div>`).join("")}
+          </div>
+        </div>
+      </aside>
+
+    </div>
+  `;
+
+  // Server switch
+  window.changeServer = (url, btn) => {
+    document.querySelectorAll(".server-btn").forEach(b => b.classList.remove("active"));
+    btn.classList.add("active");
+    const iframe = document.getElementById("player-iframe");
+    if (iframe) iframe.src = url;
+  };
+
+  // Comments
+  window.submitComment = async () => {
+    const name = document.getElementById("c-name").value.trim();
+    const body = document.getElementById("c-body").value.trim();
+    if (!name || !body) { toast("Nama dan komentar tidak boleh kosong", "error"); return; }
+    const ok_ = await postComment(epUrl, name, body);
+    if (ok_) {
+      document.getElementById("c-name").value = "";
+      document.getElementById("c-body").value = "";
+      toast("Komentar terkirim!");
+      const newComments = await getComments(epUrl);
+      document.getElementById("comment-list").innerHTML = renderComments(newComments);
+    } else {
+      toast("Gagal kirim komentar", "error");
+    }
+  };
+
+  function renderComments(list) {
+    if (!list.length) return `<div class="empty"><div class="empty-icon">💬</div><p>Belum ada komentar. Jadilah yang pertama!</p></div>`;
+    return list.map(c => `
+      <div class="comment-item">
+        <div class="comment-header">
+          <div class="comment-avatar">${(c.name || '?')[0].toUpperCase()}</div>
+          <span class="comment-name">${c.name}</span>
+          <span class="comment-date">${timeAgo(c.created_at)}</span>
+        </div>
+        <p class="comment-body">${c.body.replace(/</g,'&lt;')}</p>
+      </div>`).join("");
+  }
+})();
+</script>
+</body>
+</html>

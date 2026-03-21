@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Detail Series — Noctyra Watch</title>
+  <link rel="stylesheet" href="/css/style.css">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🐉</text></svg>">
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+</head>
+<body>
+
+<nav>
+  <div class="nav-inner">
+    <a href="/" class="nav-logo">🐉 Noctyra Watch</a>
+    <div class="nav-links">
+      <a href="/">Beranda</a>
+      <a href="/schedule.html">Jadwal</a>
+      <a href="/search.html">Series</a>
+      <button class="nav-search-btn" id="search-btn">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+          <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+        </svg> Cari
+      </button>
+    </div>
+  </div>
+</nav>
+
+<div class="search-overlay" id="search-overlay">
+  <button class="search-close" id="search-close">✕</button>
+  <div class="search-box">
+    <input type="text" id="search-input" placeholder="Cari judul donghua...">
+  </div>
+  <div id="search-results"></div>
+</div>
+
+<main class="container page">
+  <div id="content">
+    <div class="loader"><div class="spinner"></div> Memuat data series...</div>
+  </div>
+</main>
+
+<footer>
+  <p>🐉 <span>Noctyra Watch</span> — Fansub Donghua Sub Indo</p>
+</footer>
+
+<script src="/js/app.js"></script>
+<script>
+(async () => {
+  const slug = getParam("slug");
+  if (!slug) { location.href = "/"; return; }
+
+  const [series, episodes] = await Promise.all([
+    getSeriesBySlug(slug),
+    getEpisodesBySeries(slug)
+  ]);
+
+  if (!series) {
+    document.getElementById("content").innerHTML = `
+      <div class="empty"><div class="empty-icon">😢</div><h3>Series tidak ditemukan</h3>
+      <a href="/" class="btn btn-primary" style="margin-top:16px">Kembali</a></div>`;
+    return;
+  }
+
+  document.title = `${series.title} — Noctyra Watch`;
+
+  const firstEp = episodes[episodes.length - 1]; // episode pertama (oldest)
+  const lastEp  = episodes[0];                    // episode terbaru
+
+  document.getElementById("content").innerHTML = `
+    <!-- Series Info -->
+    <div class="series-info-box" style="margin-bottom:40px">
+      <img class="series-poster" src="${series.thumb || ''}" alt="${series.title}"
+           onerror="this.src='https://via.placeholder.com/200x300/141428/666680?text=No+Image'">
+      <div class="series-details">
+        <h1>${series.title}</h1>
+        <div class="series-tags">
+          <span class="tag red">${series.status || 'Unknown'}</span>
+          <span class="tag">${series.type || 'Donghua'}</span>
+          ${(series.genres || []).map(g => `<span class="tag">${g}</span>`).join("")}
+        </div>
+        <table class="series-meta-table">
+          <tr><td>Rating</td><td>⭐ ${series.rating || '-'}</td></tr>
+          <tr><td>Studio</td><td>${series.studio || '-'}</td></tr>
+          <tr><td>Network</td><td>${series.network || '-'}</td></tr>
+          <tr><td>Season</td><td>${series.season || '-'}</td></tr>
+          <tr><td>Negara</td><td>${series.country || '-'}</td></tr>
+          <tr><td>Durasi</td><td>${series.duration || '-'}</td></tr>
+          <tr><td>Episode</td><td>${episodes.length} episode tersedia</td></tr>
+        </table>
+        ${series.synopsis ? `<p class="series-synopsis">${series.synopsis}</p>` : ''}
+        <div style="display:flex;gap:10px;margin-top:20px;flex-wrap:wrap">
+          ${firstEp ? `<a href="/episode.html?url=${encodeURIComponent(firstEp.url)}" class="btn btn-primary">▶ Mulai Nonton</a>` : ''}
+          ${lastEp && lastEp !== firstEp ? `<a href="/episode.html?url=${encodeURIComponent(lastEp.url)}" class="btn btn-secondary">⏭ Episode Terbaru</a>` : ''}
+        </div>
+      </div>
+    </div>
+
+    <!-- Episode List -->
+    <section class="section">
+      <div class="section-header">
+        <h2 class="section-title">Daftar Episode</h2>
+        <span style="font-size:0.8rem;color:var(--muted)">${episodes.length} episode</span>
+      </div>
+      <div style="margin-bottom:12px;display:flex;gap:8px">
+        <button onclick="sortEp('desc')" id="sort-desc" class="genre-chip active">Terbaru</button>
+        <button onclick="sortEp('asc')"  id="sort-asc"  class="genre-chip">Terlama</button>
+        <input id="ep-search" type="text" placeholder="Filter episode..."
+               style="margin-left:auto;padding:6px 12px;background:var(--card);border:1px solid var(--border);
+                      border-radius:20px;color:var(--text);font-family:inherit;font-size:0.8rem;outline:none;width:180px"
+               oninput="filterEp(this.value)">
+      </div>
+      <div class="ep-list" id="ep-list">
+        ${renderEpList(episodes)}
+      </div>
+    </section>
+  `;
+
+  let currentEps = [...episodes];
+
+  window.sortEp = (dir) => {
+    currentEps = dir === 'asc' ? [...episodes].reverse() : [...episodes];
+    document.getElementById("ep-list").innerHTML = renderEpList(currentEps);
+    document.getElementById("sort-desc").classList.toggle("active", dir === "desc");
+    document.getElementById("sort-asc").classList.toggle("active", dir === "asc");
+  };
+
+  window.filterEp = (q) => {
+    const filtered = episodes.filter(ep =>
+      (ep.title || '').toLowerCase().includes(q.toLowerCase()) ||
+      (ep.ep_num || '').includes(q)
+    );
+    document.getElementById("ep-list").innerHTML = renderEpList(filtered);
+  };
+
+  function renderEpList(eps) {
+    if (!eps.length) return `<div class="empty"><div class="empty-icon">🔍</div><p>Tidak ditemukan</p></div>`;
+    return eps.map(ep => `
+      <div class="ep-item" onclick="goEpisode('${encodeURIComponent(ep.url)}')">
+        <span class="ep-num">${ep.ep_num ? `Ep ${ep.ep_num}` : '-'}</span>
+        <span class="ep-title">${ep.title || `Episode ${ep.ep_num}`}</span>
+        <span class="ep-date">${ep.release_date || timeAgo(ep.created_at)}</span>
+      </div>`).join("");
+  }
+})();
+</script>
+</body>
+</html>

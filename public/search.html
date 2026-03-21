@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Cari Series — Noctyra Watch</title>
+  <link rel="stylesheet" href="/css/style.css">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🐉</text></svg>">
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+</head>
+<body>
+
+<nav>
+  <div class="nav-inner">
+    <a href="/" class="nav-logo">🐉 Noctyra Watch</a>
+    <div class="nav-links">
+      <a href="/">Beranda</a>
+      <a href="/schedule.html">Jadwal</a>
+      <a href="/search.html" class="active">Series</a>
+      <button class="nav-search-btn" id="search-btn">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+          <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+        </svg> Cari
+      </button>
+    </div>
+  </div>
+</nav>
+
+<div class="search-overlay" id="search-overlay">
+  <button class="search-close" id="search-close">✕</button>
+  <div class="search-box">
+    <input type="text" id="search-input" placeholder="Cari judul donghua...">
+  </div>
+  <div id="search-results"></div>
+</div>
+
+<main class="container page">
+  <!-- Search bar -->
+  <div style="margin-bottom:24px">
+    <input id="main-search" type="text" placeholder="🔍 Cari judul donghua..."
+           style="width:100%;padding:14px 20px;background:var(--bg3);border:1px solid var(--border);
+                  border-radius:var(--radius);color:var(--text);font-family:inherit;
+                  font-size:1rem;outline:none;transition:border-color 0.2s"
+           onfocus="this.style.borderColor='var(--red)'" onblur="this.style.borderColor='var(--border)'">
+  </div>
+
+  <!-- Filters -->
+  <div style="display:flex;gap:16px;flex-wrap:wrap;margin-bottom:20px;align-items:center">
+    <!-- Status filter -->
+    <div style="display:flex;gap:6px">
+      <button class="genre-chip active" onclick="setStatus('', this)">Semua</button>
+      <button class="genre-chip" onclick="setStatus('Ongoing', this)">Ongoing</button>
+      <button class="genre-chip" onclick="setStatus('Completed', this)">Tamat</button>
+    </div>
+
+    <div style="width:1px;height:24px;background:var(--border)"></div>
+
+    <!-- Sort -->
+    <select id="sort-select" onchange="applyFilters()"
+            style="padding:6px 12px;background:var(--card);border:1px solid var(--border);
+                   border-radius:20px;color:var(--text);font-family:inherit;font-size:0.8rem;outline:none">
+      <option value="updated_at">Terbaru Update</option>
+      <option value="title">A-Z</option>
+      <option value="rating">Rating</option>
+    </select>
+  </div>
+
+  <!-- Genre chips -->
+  <div class="genre-filter" id="genre-filter">
+    <button class="genre-chip active" onclick="setGenre('', this)">Semua Genre</button>
+  </div>
+
+  <!-- Results -->
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
+    <span id="result-count" style="font-size:0.85rem;color:var(--muted)"></span>
+  </div>
+
+  <div id="results-grid" class="cards-grid wide">
+    <div class="loader"><div class="spinner"></div> Memuat series...</div>
+  </div>
+</main>
+
+<footer>
+  <p>🐉 <span>Noctyra Watch</span> — Fansub Donghua Sub Indo</p>
+</footer>
+
+<script src="/js/app.js"></script>
+<script>
+let allSeries = [];
+let activeStatus = '';
+let activeGenre  = '';
+
+const GENRES = [
+  "Action","Adventure","Fantasy","Comedy","Drama","Romance","Horror",
+  "Martial Arts","Super Power","Cultivation","Historical","Isekai",
+  "Sci-Fi","Mystery","Supernatural","Urban Fantasy","Slice of Life"
+];
+
+async function init() {
+  // Load all series
+  const s = await initSupabase();
+  const { data } = await s.from("series").select("*").order("updated_at", { ascending: false });
+  allSeries = data || [];
+
+  // Genre chips
+  const gf = document.getElementById("genre-filter");
+  GENRES.forEach(g => {
+    const btn = document.createElement("button");
+    btn.className = "genre-chip";
+    btn.textContent = g;
+    btn.onclick = () => setGenre(g, btn);
+    gf.appendChild(btn);
+  });
+
+  // Check URL param
+  const statusParam = getParam("status");
+  if (statusParam) {
+    activeStatus = statusParam;
+    document.querySelectorAll(".genre-chip").forEach(b => {
+      if (b.textContent === statusParam) b.classList.add("active");
+      else if (b.textContent === "Semua" && !statusParam) b.classList.add("active");
+    });
+  }
+
+  applyFilters();
+
+  // Search
+  let timer;
+  document.getElementById("main-search").addEventListener("input", (e) => {
+    clearTimeout(timer);
+    timer = setTimeout(() => applyFilters(e.target.value), 300);
+  });
+}
+
+function setStatus(status, btn) {
+  activeStatus = status;
+  document.querySelectorAll('[onclick^="setStatus"]').forEach(b => b.classList.remove("active"));
+  btn.classList.add("active");
+  applyFilters();
+}
+
+function setGenre(genre, btn) {
+  activeGenre = genre;
+  document.querySelectorAll('[onclick^="setGenre"]').forEach(b => b.classList.remove("active"));
+  btn.classList.add("active");
+  applyFilters();
+}
+
+function applyFilters(searchQ) {
+  const q     = searchQ !== undefined ? searchQ : document.getElementById("main-search").value.trim();
+  const sort  = document.getElementById("sort-select").value;
+
+  let filtered = [...allSeries];
+
+  if (q) filtered = filtered.filter(s => (s.title||'').toLowerCase().includes(q.toLowerCase()));
+  if (activeStatus) filtered = filtered.filter(s => s.status === activeStatus);
+  if (activeGenre)  filtered = filtered.filter(s => (s.genres||[]).includes(activeGenre));
+
+  if (sort === "title")  filtered.sort((a,b) => (a.title||'').localeCompare(b.title||''));
+  if (sort === "rating") filtered.sort((a,b) => parseFloat(b.rating||0) - parseFloat(a.rating||0));
+
+  document.getElementById("result-count").textContent = `${filtered.length} series ditemukan`;
+  document.getElementById("results-grid").innerHTML = filtered.length
+    ? filtered.map(s => cardHTML(s)).join("")
+    : `<div class="empty" style="grid-column:1/-1">
+        <div class="empty-icon">🔍</div>
+        <h3>Tidak ada hasil</h3>
+        <p>Coba kata kunci atau filter lain</p>
+       </div>`;
+}
+
+init();
+</script>
+</body>
+</html>
