@@ -510,9 +510,12 @@ document.addEventListener('DOMContentLoaded',()=>{  initSearch(); });
     <div class="l2">
       <div>
         <div class="player-wrap" id="player-wrap">
-          ${servers.length?`<iframe id="pif" src="${servers[0].embed_url}" allowfullscreen allow="autoplay;fullscreen;picture-in-picture" scrolling="no"></iframe>`:`<div class="player-empty"><div class="player-empty-ico">📺</div><p style="font-weight:600">Server belum tersedia</p><a href="${epUrl}" target="_blank" class="btn btn-red" style="margin-top:8px">Buka di Anichin ↗</a></div>`}
+          <iframe id="pif" src="${epUrl}" allowfullscreen allow="autoplay;fullscreen;picture-in-picture" scrolling="no" style="position:absolute;inset:0;width:100%;height:100%;border:none"></iframe>
         </div>
-        ${servers.length>1?`<div style="margin-top:14px"><div style="font-size:.78rem;color:var(--muted2);margin-bottom:8px;letter-spacing:.05em;text-transform:uppercase">Server</div><div class="stabs">${servers.map((s,i)=>`<button class="stab ${i===0?'act':''}" onclick="chServer('${s.embed_url}',this)">${s.type||'Server '+(i+1)}</button>`).join('')}</div></div>`:''}
+        <div style="margin-top:12px;display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+          <span style="font-size:.78rem;color:var(--muted2)">Jika player tidak muncul:</span>
+          <a href="${epUrl}" target="_blank" class="btn btn-ghost" style="padding:6px 14px;font-size:.8rem">Buka di Anichin ↗</a>
+        </div>
         <div class="ep-nav">
           ${prev?`<a href="episode.html?url=${encodeURIComponent(prev.url)}" class="ep-nb prev">← ${prev.title||'Ep '+prev.ep_num}</a>`:'<span></span>'}
           <a href="series.html?slug=${episode.series_slug}" class="ep-nav-mid">📋 Semua Ep</a>
