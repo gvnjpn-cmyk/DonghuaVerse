@@ -214,8 +214,8 @@ async function main() {
       const seriesId = await upsertSeries(seriesData);
       if (!seriesId) { await sleep(2000); continue; }
 
-      // Hanya 3 episode terbaru per series untuk hemat waktu
-      for (const ep of seriesData.episodes.slice(0, 3)) {
+      // Semua episode
+      for (const ep of seriesData.episodes) {
         if (!ep.url) continue;
         const result = await upsertEpisode(seriesId, slug, ep);
         if (!result) continue;
