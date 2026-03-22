@@ -80,7 +80,6 @@ async function scrapeEpisode(browser, epUrl) {
   try {
     await page.setUserAgent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/120.0.0.0 Safari/537.36");
     
-    // Intercept untuk tangkap embed URLs
     const embedUrls = [];
     await page.setRequestInterception(true);
     page.on("request", req => {
@@ -90,16 +89,21 @@ async function scrapeEpisode(browser, epUrl) {
       if (u.includes("ok.ru") || u.includes("dailymotion") || u.includes("rumble") || u.includes("drive.google")) {
         embedUrls.push(u);
       }
-      req.continue();
+      try { req.continue(); } catch(e) {}
     });
 
-    await page.goto(epUrl, { waitUntil: "networkidle2", timeout: 40000 });
-    await sleep(4000); // tunggu JS load player
+    await page.goto(epUrl, { waitUntil: "domcontentloaded", timeout: 40000 });
+    
+    // Tunggu lebih lama biar JS load player
+    await sleep(6000);
 
-    // Klik semua server button untuk trigger load
-    await page.evaluate(() => {
-      document.querySelectorAll(".server-select a, [data-id], .mirrorlink a").forEach(btn => btn.click());
-    });
+    // Tunggu sampai ada iframe
+    try {
+      await page.waitForSelector("iframe", { timeout: 10000 });
+    } catch(e) {
+      log(`Tidak ada iframe di ${epUrl}`);
+    }
+
     await sleep(2000);
 
     // Ambil iframe srcs
@@ -107,14 +111,14 @@ async function scrapeEpisode(browser, epUrl) {
       return [...document.querySelectorAll("iframe")]
         .map(f => f.src || f.dataset?.src)
         .filter(s => s && !s.includes("recaptcha") && s.startsWith("http"));
-    });
+    }).catch(() => []);
 
     // Ambil server buttons
     const serverBtns = await page.evaluate(() => {
-      return [...document.querySelectorAll("[data-video], .mirrorlink a")]
+      return [...document.querySelectorAll("[data-video], .mirrorlink a, .server-select a")]
         .map(el => ({ type: el.textContent.trim() || "Server", embed_url: el.dataset?.video || el.href }))
         .filter(s => s.embed_url?.startsWith("http"));
-    });
+    }).catch(() => []);
 
     // Ambil download links
     const downloads = await page.evaluate(() => {
@@ -127,7 +131,7 @@ async function scrapeEpisode(browser, epUrl) {
         }
       });
       return items;
-    });
+    }).catch(() => []);
 
     // Gabungkan semua server
     const servers = [];
@@ -151,7 +155,7 @@ async function scrapeEpisode(browser, epUrl) {
     err(`Episode ${epUrl}: ${e.message}`);
     return { servers: [], downloads: [] };
   } finally {
-    await page.close();
+    await page.close().catch(() => {});
   }
 }
 
