@@ -1,8 +1,13 @@
 {
   "version": 2,
-  "outputDirectory": "public",
   "routes": [
     { "src": "/api/config", "dest": "/api/config.js" },
-    { "src": "/(.*)", "dest": "/$1" }
+    { "src": "/css/(.*)", "dest": "/public/css/$1" },
+    { "src": "/js/(.*)", "dest": "/public/js/$1" },
+    { "src": "/series.html", "dest": "/public/series.html" },
+    { "src": "/episode.html", "dest": "/public/episode.html" },
+    { "src": "/schedule.html", "dest": "/public/schedule.html" },
+    { "src": "/search.html", "dest": "/public/search.html" },
+    { "src": "/(.*)", "dest": "/public/index.html" }
   ]
 }
