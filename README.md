@@ -1,4 +1,4 @@
-# 🐉 Noctyra Watch
+# Noctyra Watch
 
 Web streaming Donghua Sub Indo — scraper otomatis dari Anichin.cafe ke Supabase, serve via Express di Pterodactyl.
 
